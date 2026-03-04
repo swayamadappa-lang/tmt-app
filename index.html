@@ -137,33 +137,28 @@ function saveData() {
         return;
     }
 
-    // ---------- CREATE CSV ----------
+    // ----- CREATE CSV STRING -----
     let csv = "stroke,time,x,y,velocity,acceleration,jerk,pressure,tiltX,tiltY,pauseWithin\n";
 
     rawData.forEach(row => {
         csv += `${row.stroke},${row.time},${row.x},${row.y},${row.velocity},${row.acceleration},${row.jerk},${row.pressure},${row.tiltX},${row.tiltY},${row.pauseWithin}\n`;
     });
 
-    // ---------- DOWNLOAD CSV ----------
-    let csvBlob = new Blob([csv], {type: "text/csv"});
-    let csvLink = document.createElement("a");
-    csvLink.href = URL.createObjectURL(csvBlob);
-    csvLink.download = "drawing_data.csv";
-    document.body.appendChild(csvLink);
-    csvLink.click();
-    document.body.removeChild(csvLink);
+    // ----- OPEN CSV IN NEW TAB (Safari-safe) -----
+    let encodedUri = "data:text/csv;charset=utf-8," + encodeURIComponent(csv);
+    window.open(encodedUri, "_blank");
 
-    // ---------- DOWNLOAD IMAGE ----------
+    // ----- SAVE IMAGE (unchanged, works already) -----
     canvas.toBlob(function(blob) {
         let imgLink = document.createElement("a");
         imgLink.href = URL.createObjectURL(blob);
         imgLink.download = "drawing_image.png";
-        document.body.appendChild(imgLink);
         imgLink.click();
-        document.body.removeChild(imgLink);
     });
 }
+
 </script>
 
 </body>
 </html>
+
