@@ -137,28 +137,31 @@ function saveData() {
         return;
     }
 
-    // ----- CREATE CSV STRING -----
     let csv = "stroke,time,x,y,velocity,acceleration,jerk,pressure,tiltX,tiltY,pauseWithin\n";
 
     rawData.forEach(row => {
         csv += `${row.stroke},${row.time},${row.x},${row.y},${row.velocity},${row.acceleration},${row.jerk},${row.pressure},${row.tiltX},${row.tiltY},${row.pauseWithin}\n`;
     });
 
-    // ----- OPEN CSV IN NEW TAB (Safari-safe) -----
-    let encodedUri = "data:text/csv;charset=utf-8," + encodeURIComponent(csv);
-    window.open(encodedUri, "_blank");
+    // Create textarea
+    let textArea = document.createElement("textarea");
+    textArea.value = csv;
+    textArea.style.position = "fixed";
+    textArea.style.top = "70px";
+    textArea.style.left = "10px";
+    textArea.style.width = "95%";
+    textArea.style.height = "300px";
+    textArea.style.zIndex = "1000";
+    document.body.appendChild(textArea);
 
-    // ----- SAVE IMAGE (unchanged, works already) -----
-    canvas.toBlob(function(blob) {
-        let imgLink = document.createElement("a");
-        imgLink.href = URL.createObjectURL(blob);
-        imgLink.download = "drawing_image.png";
-        imgLink.click();
-    });
+    textArea.select();
+
+    alert("CSV generated. Tap inside box → Copy → Paste into Files/Numbers.");
 }
 
 </script>
 
 </body>
 </html>
+
 
