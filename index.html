@@ -2,31 +2,30 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>iPad Kinematic Drawing App</title>
+<title>Kinematic Drawing App</title>
 <style>
 body {
     margin: 0;
     overflow: hidden;
-    background: white;
     font-family: Arial;
+    background: white;
 }
 
 #toolbar {
     position: fixed;
     top: 0;
-    left: 0;
     width: 100%;
     height: 60px;
-    background: #f2f2f2;
+    background: #f0f0f0;
     display: flex;
     align-items: center;
-    padding: 10px;
+    padding-left: 10px;
     z-index: 10;
 }
 
 button {
-    margin-right: 10px;
-    padding: 10px 15px;
+    margin-right: 15px;
+    padding: 10px 20px;
     font-size: 16px;
 }
 
@@ -34,6 +33,7 @@ canvas {
     position: absolute;
     top: 60px;
     left: 0;
+    touch-action: none;
 }
 </style>
 </head>
@@ -55,48 +55,42 @@ canvas.height = window.innerHeight - 60;
 
 let drawing = false;
 let strokeID = 0;
+
 let lastPoint = null;
 let lastTime = null;
 let lastVelocity = 0;
 let lastAcceleration = 0;
-let pauseThreshold = 0.1; // seconds
-let lastUpTime = null;
 
 let rawData = [];
 
-function distance(p1, p2) {
+function dist(p1, p2) {
     return Math.hypot(p2.x - p1.x, p2.y - p1.y);
 }
 
-canvas.addEventListener("pointerdown", e => {
-    if (e.pointerType !== "pen") return;
+canvas.addEventListener("pointerdown", function(e) {
 
     drawing = true;
     strokeID++;
 
-    if (lastUpTime) {
-        let betweenPause = e.timeStamp/1000 - lastUpTime;
-        console.log("Pause between strokes:", betweenPause);
-    }
-
     lastPoint = {x: e.offsetX, y: e.offsetY};
-    lastTime = e.timeStamp/1000;
+    lastTime = e.timeStamp / 1000;
 
     ctx.beginPath();
     ctx.moveTo(lastPoint.x, lastPoint.y);
 });
 
-canvas.addEventListener("pointermove", e => {
-    if (!drawing || e.pointerType !== "pen") return;
+canvas.addEventListener("pointermove", function(e) {
 
-    let currentTime = e.timeStamp/1000;
+    if (!drawing) return;
+
+    let currentTime = e.timeStamp / 1000;
     let currentPoint = {x: e.offsetX, y: e.offsetY};
 
     let dt = currentTime - lastTime;
-    if (dt === 0) return;
+    if (dt <= 0) return;
 
-    let dist = distance(lastPoint, currentPoint);
-    let velocity = dist / dt;
+    let distance = dist(lastPoint, currentPoint);
+    let velocity = distance / dt;
     let acceleration = (velocity - lastVelocity) / dt;
     let jerk = (acceleration - lastAcceleration) / dt;
 
@@ -110,9 +104,9 @@ canvas.addEventListener("pointermove", e => {
         velocity: velocity,
         acceleration: acceleration,
         jerk: jerk,
-        pressure: e.pressure,
-        tiltX: e.tiltX,
-        tiltY: e.tiltY,
+        pressure: e.pressure || 0,
+        tiltX: e.tiltX || 0,
+        tiltY: e.tiltY || 0,
         pauseWithin: pauseWithin
     });
 
@@ -126,11 +120,8 @@ canvas.addEventListener("pointermove", e => {
     lastAcceleration = acceleration;
 });
 
-canvas.addEventListener("pointerup", e => {
-    if (e.pointerType !== "pen") return;
-
+canvas.addEventListener("pointerup", function(e) {
     drawing = false;
-    lastUpTime = e.timeStamp/1000;
 });
 
 function clearCanvas() {
@@ -141,24 +132,35 @@ function clearCanvas() {
 
 function saveData() {
 
-    // Save CSV
+    if (rawData.length === 0) {
+        alert("No data recorded.");
+        return;
+    }
+
+    // ---------- CREATE CSV ----------
     let csv = "stroke,time,x,y,velocity,acceleration,jerk,pressure,tiltX,tiltY,pauseWithin\n";
+
     rawData.forEach(row => {
         csv += `${row.stroke},${row.time},${row.x},${row.y},${row.velocity},${row.acceleration},${row.jerk},${row.pressure},${row.tiltX},${row.tiltY},${row.pauseWithin}\n`;
     });
 
-    let blob = new Blob([csv], { type: 'text/csv' });
-    let link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = "drawing_data.csv";
-    link.click();
+    // ---------- DOWNLOAD CSV ----------
+    let csvBlob = new Blob([csv], {type: "text/csv"});
+    let csvLink = document.createElement("a");
+    csvLink.href = URL.createObjectURL(csvBlob);
+    csvLink.download = "drawing_data.csv";
+    document.body.appendChild(csvLink);
+    csvLink.click();
+    document.body.removeChild(csvLink);
 
-    // Save Image
+    // ---------- DOWNLOAD IMAGE ----------
     canvas.toBlob(function(blob) {
         let imgLink = document.createElement("a");
         imgLink.href = URL.createObjectURL(blob);
         imgLink.download = "drawing_image.png";
+        document.body.appendChild(imgLink);
         imgLink.click();
+        document.body.removeChild(imgLink);
     });
 }
 </script>
