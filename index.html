@@ -2,166 +2,102 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Kinematic Drawing App</title>
+<title>iPad Kinematic Capture</title>
 <style>
-body {
-    margin: 0;
-    overflow: hidden;
-    font-family: Arial;
-    background: white;
-}
-
-#toolbar {
-    position: fixed;
-    top: 0;
-    width: 100%;
-    height: 60px;
-    background: #f0f0f0;
-    display: flex;
-    align-items: center;
-    padding-left: 10px;
-    z-index: 10;
-}
-
-button {
-    margin-right: 15px;
-    padding: 10px 20px;
-    font-size: 16px;
-}
-
-canvas {
-    position: absolute;
-    top: 60px;
-    left: 0;
-    touch-action: none;
-}
+body { margin:0; overflow:hidden; }
+canvas { width:100vw; height:100vh; touch-action:none; }
 </style>
 </head>
 <body>
 
-<div id="toolbar">
-    <button onclick="clearCanvas()">Clear</button>
-    <button onclick="saveData()">Save</button>
-</div>
-
 <canvas id="canvas"></canvas>
 
 <script>
+const socket = new WebSocket("ws://YOUR_IP_HERE:8765");
+
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
 
 canvas.width = window.innerWidth;
-canvas.height = window.innerHeight - 60;
+canvas.height = window.innerHeight;
 
 let drawing = false;
 let strokeID = 0;
 
-let lastPoint = null;
-let lastTime = null;
-let lastVelocity = 0;
-let lastAcceleration = 0;
+let lastX=0, lastY=0;
+let lastTime=0;
+let lastVelocity=0;
+let lastAcceleration=0;
 
-let rawData = [];
-
-function dist(p1, p2) {
-    return Math.hypot(p2.x - p1.x, p2.y - p1.y);
+function dist(x1,y1,x2,y2){
+  return Math.hypot(x2-x1,y2-y1);
 }
 
-canvas.addEventListener("pointerdown", function(e) {
-
-    drawing = true;
-    strokeID++;
-
-    lastPoint = {x: e.offsetX, y: e.offsetY};
-    lastTime = e.timeStamp / 1000;
-
-    ctx.beginPath();
-    ctx.moveTo(lastPoint.x, lastPoint.y);
-});
-
-canvas.addEventListener("pointermove", function(e) {
-
-    if (!drawing) return;
-
-    let currentTime = e.timeStamp / 1000;
-    let currentPoint = {x: e.offsetX, y: e.offsetY};
-
-    let dt = currentTime - lastTime;
-    if (dt <= 0) return;
-
-    let distance = dist(lastPoint, currentPoint);
-    let velocity = distance / dt;
-    let acceleration = (velocity - lastVelocity) / dt;
-    let jerk = (acceleration - lastAcceleration) / dt;
-
-    let pauseWithin = velocity < 5 ? 1 : 0;
-
-    rawData.push({
-        stroke: strokeID,
-        time: currentTime,
-        x: currentPoint.x,
-        y: currentPoint.y,
-        velocity: velocity,
-        acceleration: acceleration,
-        jerk: jerk,
-        pressure: e.pressure || 0,
-        tiltX: e.tiltX || 0,
-        tiltY: e.tiltY || 0,
-        pauseWithin: pauseWithin
-    });
-
-    ctx.lineWidth = 2;
-    ctx.lineTo(currentPoint.x, currentPoint.y);
-    ctx.stroke();
-
-    lastPoint = currentPoint;
-    lastTime = currentTime;
-    lastVelocity = velocity;
-    lastAcceleration = acceleration;
-});
-
-canvas.addEventListener("pointerup", function(e) {
-    drawing = false;
-});
-
-function clearCanvas() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    rawData = [];
-    strokeID = 0;
+function sendData(data){
+  if(socket.readyState === WebSocket.OPEN){
+    socket.send(JSON.stringify(data));
+  }
 }
 
-function saveData() {
+canvas.addEventListener("pointerdown", e=>{
+  if(e.pointerType !== "pen") return;
 
-    if (rawData.length === 0) {
-        alert("No data recorded.");
-        return;
-    }
+  drawing = true;
+  strokeID++;
 
-    let csv = "stroke,time,x,y,velocity,acceleration,jerk,pressure,tiltX,tiltY,pauseWithin\n";
+  lastX = e.offsetX;
+  lastY = e.offsetY;
+  lastTime = performance.now()/1000;
+  lastVelocity = 0;
+  lastAcceleration = 0;
 
-    rawData.forEach(row => {
-        csv += `${row.stroke},${row.time},${row.x},${row.y},${row.velocity},${row.acceleration},${row.jerk},${row.pressure},${row.tiltX},${row.tiltY},${row.pauseWithin}\n`;
-    });
+  ctx.beginPath();
+  ctx.moveTo(lastX,lastY);
+});
 
-    // Create textarea
-    let textArea = document.createElement("textarea");
-    textArea.value = csv;
-    textArea.style.position = "fixed";
-    textArea.style.top = "70px";
-    textArea.style.left = "10px";
-    textArea.style.width = "95%";
-    textArea.style.height = "300px";
-    textArea.style.zIndex = "1000";
-    document.body.appendChild(textArea);
+canvas.addEventListener("pointermove", e=>{
+  if(!drawing) return;
 
-    textArea.select();
+  const t = performance.now()/1000;
+  const x = e.offsetX;
+  const y = e.offsetY;
 
-    alert("CSV generated. Tap inside box → Copy → Paste into Files/Numbers.");
-}
+  const dt = t-lastTime;
+  if(dt<=0) return;
 
+  const d = dist(lastX,lastY,x,y);
+  const velocity = d/dt;
+  const acceleration = (velocity-lastVelocity)/dt;
+  const jerk = (acceleration-lastAcceleration)/dt;
+
+  ctx.lineTo(x,y);
+  ctx.stroke();
+
+  sendData({
+    stroke: strokeID,
+    time: t,
+    x: x,
+    y: y,
+    velocity: velocity,
+    acceleration: acceleration,
+    jerk: jerk,
+    pressure: e.pressure || 0,
+    tiltX: e.tiltX || 0,
+    tiltY: e.tiltY || 0,
+    twist: e.twist || 0
+  });
+
+  lastX=x;
+  lastY=y;
+  lastTime=t;
+  lastVelocity=velocity;
+  lastAcceleration=acceleration;
+});
+
+canvas.addEventListener("pointerup", ()=>{
+  drawing=false;
+});
 </script>
 
 </body>
 </html>
-
-
