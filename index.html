@@ -13,7 +13,7 @@ canvas { width:100vw; height:100vh; touch-action:none; }
 <canvas id="canvas"></canvas>
 
 <script>
-const socket = new WebSocket("ws://YOUR_IP_HERE:8765");
+const socket = new WebSocket("ws://192.168.1.7:8765");
 
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
@@ -101,3 +101,4 @@ canvas.addEventListener("pointerup", ()=>{
 
 </body>
 </html>
+
