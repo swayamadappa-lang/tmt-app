@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>iPad Kinematic Drawing App</title>
+<style>
+body {
+    margin: 0;
+    overflow: hidden;
+    background: white;
+    font-family: Arial;
+}
+
+#toolbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 60px;
+    background: #f2f2f2;
+    display: flex;
+    align-items: center;
+    padding: 10px;
+    z-index: 10;
+}
+
+button {
+    margin-right: 10px;
+    padding: 10px 15px;
+    font-size: 16px;
+}
+
+canvas {
+    position: absolute;
+    top: 60px;
+    left: 0;
+}
+</style>
+</head>
+<body>
+
+<div id="toolbar">
+    <button onclick="clearCanvas()">Clear</button>
+    <button onclick="saveData()">Save</button>
+</div>
+
+<canvas id="canvas"></canvas>
+
+<script>
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight - 60;
+
+let drawing = false;
+let strokeID = 0;
+let lastPoint = null;
+let lastTime = null;
+let lastVelocity = 0;
+let lastAcceleration = 0;
+let pauseThreshold = 0.1; // seconds
+let lastUpTime = null;
+
+let rawData = [];
+
+function distance(p1, p2) {
+    return Math.hypot(p2.x - p1.x, p2.y - p1.y);
+}
+
+canvas.addEventListener("pointerdown", e => {
+    if (e.pointerType !== "pen") return;
+
+    drawing = true;
+    strokeID++;
+
+    if (lastUpTime) {
+        let betweenPause = e.timeStamp/1000 - lastUpTime;
+        console.log("Pause between strokes:", betweenPause);
+    }
+
+    lastPoint = {x: e.offsetX, y: e.offsetY};
+    lastTime = e.timeStamp/1000;
+
+    ctx.beginPath();
+    ctx.moveTo(lastPoint.x, lastPoint.y);
+});
+
+canvas.addEventListener("pointermove", e => {
+    if (!drawing || e.pointerType !== "pen") return;
+
+    let currentTime = e.timeStamp/1000;
+    let currentPoint = {x: e.offsetX, y: e.offsetY};
+
+    let dt = currentTime - lastTime;
+    if (dt === 0) return;
+
+    let dist = distance(lastPoint, currentPoint);
+    let velocity = dist / dt;
+    let acceleration = (velocity - lastVelocity) / dt;
+    let jerk = (acceleration - lastAcceleration) / dt;
+
+    let pauseWithin = velocity < 5 ? 1 : 0;
+
+    rawData.push({
+        stroke: strokeID,
+        time: currentTime,
+        x: currentPoint.x,
+        y: currentPoint.y,
+        velocity: velocity,
+        acceleration: acceleration,
+        jerk: jerk,
+        pressure: e.pressure,
+        tiltX: e.tiltX,
+        tiltY: e.tiltY,
+        pauseWithin: pauseWithin
+    });
+
+    ctx.lineWidth = 2;
+    ctx.lineTo(currentPoint.x, currentPoint.y);
+    ctx.stroke();
+
+    lastPoint = currentPoint;
+    lastTime = currentTime;
+    lastVelocity = velocity;
+    lastAcceleration = acceleration;
+});
+
+canvas.addEventListener("pointerup", e => {
+    if (e.pointerType !== "pen") return;
+
+    drawing = false;
+    lastUpTime = e.timeStamp/1000;
+});
+
+function clearCanvas() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    rawData = [];
+    strokeID = 0;
+}
+
+function saveData() {
+
+    // Save CSV
+    let csv = "stroke,time,x,y,velocity,acceleration,jerk,pressure,tiltX,tiltY,pauseWithin\n";
+    rawData.forEach(row => {
+        csv += `${row.stroke},${row.time},${row.x},${row.y},${row.velocity},${row.acceleration},${row.jerk},${row.pressure},${row.tiltX},${row.tiltY},${row.pauseWithin}\n`;
+    });
+
+    let blob = new Blob([csv], { type: 'text/csv' });
+    let link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "drawing_data.csv";
+    link.click();
+
+    // Save Image
+    canvas.toBlob(function(blob) {
+        let imgLink = document.createElement("a");
+        imgLink.href = URL.createObjectURL(blob);
+        imgLink.download = "drawing_image.png";
+        imgLink.click();
+    });
+}
+</script>
+
+</body>
+</html>
